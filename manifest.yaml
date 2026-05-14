@@ -1,0 +1,20 @@
+display_information:
+  name: Horizons Sub-Event Standup Bot
+  description: Posts daily standup messages and collects updates in threads
+  background_color: "#2c2d30"
+
+features:
+  bot_user:
+    display_name: Horizons Sub-Event Standup Bot
+    always_online: true
+
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - channels:join
+      - groups:write
+      - groups:history
+      - groups:read
+      - files:write
+      - usergroups:read

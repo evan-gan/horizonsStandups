@@ -1,0 +1,17 @@
+{
+  "name": "standups-bot",
+  "version": "1.0.0",
+  "description": "Slack bot that posts daily standup messages on a cron schedule",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node tests/run_all.js"
+  },
+  "dependencies": {
+    "@slack/web-api": "^7.9.1",
+    "dotenv": "^16.4.7",
+    "node-cron": "^3.0.3",
+    "sharp": "^0.34.5"
+  }
+}

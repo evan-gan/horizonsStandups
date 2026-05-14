@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000">
+  
+  
+  <text x="40" y="70" fill="#e6e9ef" font-size="60" font-weight="700" font-family="system-ui, sans-serif">Test Event</text>
+  <text x="40" y="106" fill="#8a93a4" font-size="22" font-family="system-ui, sans-serif">Test City  •  United States  •  2026-06-01 → 2026-06-03  •  hour goal: 30</text>
+  <text x="1560" y="70" text-anchor="end" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">generated 2026-05-14T14:13:38.932Z</text>
+  
+    <g>
+      <rect x="40" y="132" width="362" height="170" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="56" y="170.1" fill="#8a93a4" font-size="26" font-weight="500" font-family="system-ui, sans-serif">Pinned users</text>
+      <text x="221" y="270.4" text-anchor="middle" fill="#4ecdc4" font-size="104" font-weight="700" font-family="system-ui, sans-serif">5</text>
+    </g>
+    <g>
+      <rect x="426" y="132" width="362" height="170" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="442" y="170.1" fill="#8a93a4" font-size="26" font-weight="500" font-family="system-ui, sans-serif">DAU yesterday</text>
+      <text x="607" y="270.4" text-anchor="middle" fill="#ff6b6b" font-size="104" font-weight="700" font-family="system-ui, sans-serif">3</text>
+    </g>
+    <g>
+      <rect x="812" y="132" width="362" height="170" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="828" y="170.1" fill="#8a93a4" font-size="26" font-weight="500" font-family="system-ui, sans-serif">Met hour goal</text>
+      <text x="993" y="270.4" text-anchor="middle" fill="#7bd389" font-size="104" font-weight="700" font-family="system-ui, sans-serif">1</text>
+    </g>
+    <g>
+      <rect x="1198" y="132" width="362" height="170" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="1214" y="170.1" fill="#8a93a4" font-size="26" font-weight="500" font-family="system-ui, sans-serif">Not met</text>
+      <text x="1379" y="270.4" text-anchor="middle" fill="#e57373" font-size="104" font-weight="700" font-family="system-ui, sans-serif">4</text>
+    </g>
+  
+    <g>
+      <rect x="40" y="336" width="740" height="322" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="56" y="382" fill="#e6e9ef" font-size="30" font-weight="600" font-family="system-ui, sans-serif">Cumulative pinned users (30d)</text>
+      <text x="764" y="382" text-anchor="end" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">max 5</text>
+      <path d="M56.0,570.0 L233.0,528.0 L410.0,486.0 L587.0,444.0 L764.0,402.0 L764.0,612.0 L56.0,612.0 Z" fill="#4ecdc433" stroke="#4ecdc4" stroke-width="3"/>
+      <text x="56" y="640" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">2026-04-19</text>
+      <text x="764" y="640" text-anchor="end" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">2026-05-13</text>
+    </g>
+  
+    <g>
+      <rect x="788" y="336" width="740" height="322" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="804" y="382" fill="#e6e9ef" font-size="30" font-weight="600" font-family="system-ui, sans-serif">Daily active users (30d)</text>
+      <text x="1512" y="382" text-anchor="end" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">max 3</text>
+      <path d="M804.0,612.0 L829.3,612.0 L854.6,612.0 L879.9,612.0 L905.1,542.0 L930.4,612.0 L955.7,542.0 L981.0,542.0 L1006.3,542.0 L1031.6,612.0 L1056.9,542.0 L1082.1,542.0 L1107.4,542.0 L1132.7,542.0 L1158.0,542.0 L1183.3,542.0 L1208.6,542.0 L1233.9,472.0 L1259.1,472.0 L1284.4,542.0 L1309.7,542.0 L1335.0,472.0 L1360.3,402.0 L1385.6,542.0 L1410.9,472.0 L1436.1,402.0 L1461.4,472.0 L1486.7,472.0 L1512.0,402.0" fill="none" stroke="#ff6b6b" stroke-width="3"/>
+      <text x="804" y="640" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">2026-04-15</text>
+      <text x="1512" y="640" text-anchor="end" fill="#8a93a4" font-size="18" font-family="system-ui, sans-serif">2026-05-13</text>
+    </g>
+  
+    <g>
+      <rect x="40" y="686" width="452" height="290" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="56" y="728" fill="#e6e9ef" font-size="26" font-weight="600" font-family="system-ui, sans-serif">Hour goal split</text>
+      
+    <g>
+      <circle cx="152" cy="828" r="76" fill="#e57373"/>
+      <path d="M152,828 L152,752 A76,76 0 0 1 224.28,804.51 Z" fill="#7bd389"/>
+      <circle cx="152" cy="828" r="45.6" fill="#1a212b"/>
+      <text x="152" y="835.2" text-anchor="middle" fill="#e6e9ef" font-size="40" font-weight="700" font-family="system-ui, sans-serif">20%</text>
+      <text x="152" y="853.2" text-anchor="middle" fill="#8a93a4" font-size="12" font-family="system-ui, sans-serif">met goal</text>
+    </g>
+      <rect x="256" y="796" width="24" height="24" fill="#7bd389" rx="3"/>
+      <text x="290" y="816" fill="#e6e9ef" font-size="24" font-family="system-ui, sans-serif">Met (1)</text>
+      <rect x="256" y="836" width="24" height="24" fill="#e57373" rx="3"/>
+      <text x="290" y="856" fill="#e6e9ef" font-size="24" font-family="system-ui, sans-serif">Not met (4)</text>
+    </g>
+  
+    <g>
+      <rect x="508" y="686" width="1052" height="290" rx="12" fill="#1a212b" stroke="#2a3340"/>
+      <text x="524" y="728" fill="#e6e9ef" font-size="26" font-weight="600" font-family="system-ui, sans-serif">Qualification funnel</text>
+      
+      <text x="524" y="782.7" fill="#8a93a4" font-size="27" font-family="system-ui, sans-serif">Signed up</text>
+      <rect x="837" y="757.09" width="611.0" height="32.32" rx="6" fill="#ff6b6b"/>
+      <text x="1462" y="784.45" fill="#e6e9ef" font-size="32" font-weight="700" font-family="system-ui, sans-serif">5</text>
+      <text x="524" y="833.2" fill="#8a93a4" font-size="27" font-family="system-ui, sans-serif">Engaged (≥1h)</text>
+      <rect x="837" y="807.59" width="366.6" height="32.32" rx="6" fill="#ffa94d"/>
+      <text x="1217.6" y="834.95" fill="#e6e9ef" font-size="32" font-weight="700" font-family="system-ui, sans-serif">3</text>
+      <text x="524" y="883.7" fill="#8a93a4" font-size="27" font-family="system-ui, sans-serif">RSVPed (≥15h)</text>
+      <rect x="837" y="858.09" width="244.4" height="32.32" rx="6" fill="#ffd166"/>
+      <text x="1095.4" y="885.45" fill="#e6e9ef" font-size="32" font-weight="700" font-family="system-ui, sans-serif">2</text>
+      <text x="524" y="934.2" fill="#8a93a4" font-size="27" font-family="system-ui, sans-serif">Qualified (≥30h)</text>
+      <rect x="837" y="908.59" width="122.2" height="32.32" rx="6" fill="#7bd389"/>
+      <text x="973.2" y="935.95" fill="#e6e9ef" font-size="32" font-weight="700" font-family="system-ui, sans-serif">1</text>
+    </g>
+</svg>
