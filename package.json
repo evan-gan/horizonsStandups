@@ -9,6 +9,7 @@
     "test": "node tests/run_all.js"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
     "@slack/web-api": "^7.9.1",
     "dotenv": "^16.4.7",
     "node-cron": "^3.0.3",

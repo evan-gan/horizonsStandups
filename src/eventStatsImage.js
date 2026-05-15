@@ -12,6 +12,35 @@ const DEFAULT_EVENT_NAME = "Test Event";
 const OUTPUT_DIR = path.resolve(__dirname, "..", "output");
 const PNG_SCALE = 2; // Render at 2× pixel density for crisp text on retina/print.
 
+// Point fontconfig at a minimal config we ship in the repo. This silences the
+// "Cannot load default config file" warning on stripped-down Linux boxes that
+// don't have /etc/fonts/fonts.conf. Must be set before sharp first rasterizes
+// an SVG, hence the module-top placement.
+const FONTCONFIG_FILE = path.resolve(__dirname, "..", "assets", "fontconfig", "fonts.conf");
+if (!process.env.FONTCONFIG_FILE && fs.existsSync(FONTCONFIG_FILE)) {
+  process.env.FONTCONFIG_FILE = FONTCONFIG_FILE;
+}
+
+// Read the Inter variable font once at startup and base64-encode it. We embed
+// it via @font-face/data URI inside every SVG so librsvg never has to look up
+// system fonts — the project works on hosts with no font packages installed.
+const INTER_FONT_PATH = require.resolve(
+  "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2"
+);
+const INTER_FONT_BASE64 = fs.readFileSync(INTER_FONT_PATH).toString("base64");
+const FONT_FACE_BLOCK = `
+    <defs>
+      <style type="text/css"><![CDATA[
+        @font-face {
+          font-family: 'Inter';
+          src: url(data:font/woff2;base64,${INTER_FONT_BASE64}) format('woff2');
+          font-weight: 100 900;
+          font-style: normal;
+        }
+      ]]></style>
+    </defs>`;
+const FONT_STACK = "Inter, system-ui, sans-serif";
+
 function getApiConfig() {
   const url = process.env.EVENT_STATS_API_URL;
   const key = process.env.EVENT_STATS_API_KEY;
@@ -223,8 +252,8 @@ function renderTile(x, y, width, height, label, value, valueColor) {
   return `
     <g>
       <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${x + padding}" y="${y + padding + labelSize * 0.85}" fill="${COLORS.muted}" font-size="${labelSize}" font-weight="500" font-family="system-ui, sans-serif">${escapeXml(label)}</text>
-      <text x="${x + width / 2}" y="${valueCenterY + valueSize * 0.35}" text-anchor="middle" fill="${valueColor}" font-size="${valueSize}" font-weight="700" font-family="system-ui, sans-serif">${escapeXml(value)}</text>
+      <text x="${x + padding}" y="${y + padding + labelSize * 0.85}" fill="${COLORS.muted}" font-size="${labelSize}" font-weight="500" font-family="Inter, system-ui, sans-serif">${escapeXml(label)}</text>
+      <text x="${x + width / 2}" y="${valueCenterY + valueSize * 0.35}" text-anchor="middle" fill="${valueColor}" font-size="${valueSize}" font-weight="700" font-family="Inter, system-ui, sans-serif">${escapeXml(value)}</text>
     </g>`;
 }
 
@@ -240,11 +269,11 @@ function renderTimelineChart(box, title, points, color, asArea) {
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="system-ui, sans-serif">${escapeXml(title)}</text>
-      <text x="${box.x + box.width}" y="${box.y + titleSize}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="system-ui, sans-serif">max ${maxValue}</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="Inter, system-ui, sans-serif">${escapeXml(title)}</text>
+      <text x="${box.x + box.width}" y="${box.y + titleSize}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="Inter, system-ui, sans-serif">max ${maxValue}</text>
       <path d="${path}" fill="${asArea ? color + "33" : "none"}" stroke="${color}" stroke-width="3"/>
-      <text x="${box.x}" y="${box.y + box.height - 2}" fill="${COLORS.muted}" font-size="${axisSize}" font-family="system-ui, sans-serif">${escapeXml(firstDate)}</text>
-      <text x="${box.x + box.width}" y="${box.y + box.height - 2}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="system-ui, sans-serif">${escapeXml(lastDate)}</text>
+      <text x="${box.x}" y="${box.y + box.height - 2}" fill="${COLORS.muted}" font-size="${axisSize}" font-family="Inter, system-ui, sans-serif">${escapeXml(firstDate)}</text>
+      <text x="${box.x + box.width}" y="${box.y + box.height - 2}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="Inter, system-ui, sans-serif">${escapeXml(lastDate)}</text>
     </g>`;
 }
 
@@ -266,8 +295,8 @@ function renderDonut(centerX, centerY, radius, met, notMet) {
       <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="${COLORS.bad}"/>
       ${met > 0 ? `<path d="${metPath}" fill="${COLORS.good}"/>` : ""}
       <circle cx="${centerX}" cy="${centerY}" r="${radius * 0.6}" fill="${COLORS.panel}"/>
-      <text x="${centerX}" y="${centerY + percentSize * 0.18}" text-anchor="middle" fill="${COLORS.text}" font-size="${percentSize}" font-weight="700" font-family="system-ui, sans-serif">${percentLabel}</text>
-      <text x="${centerX}" y="${centerY + percentSize * 0.18 + captionSize + 6}" text-anchor="middle" fill="${COLORS.muted}" font-size="${captionSize}" font-family="system-ui, sans-serif">met goal</text>
+      <text x="${centerX}" y="${centerY + percentSize * 0.18}" text-anchor="middle" fill="${COLORS.text}" font-size="${percentSize}" font-weight="700" font-family="Inter, system-ui, sans-serif">${percentLabel}</text>
+      <text x="${centerX}" y="${centerY + percentSize * 0.18 + captionSize + 6}" text-anchor="middle" fill="${COLORS.muted}" font-size="${captionSize}" font-family="Inter, system-ui, sans-serif">met goal</text>
     </g>`;
 }
 
@@ -283,12 +312,12 @@ function renderDonutPanel(box, met, notMet) {
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="system-ui, sans-serif">Hour goal split</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="Inter, system-ui, sans-serif">Hour goal split</text>
       ${renderDonut(donutCenterX, donutCenterY, radius, met, notMet)}
       <rect x="${legendX}" y="${donutCenterY - swatch - 8}" width="${swatch}" height="${swatch}" fill="${COLORS.good}" rx="3"/>
-      <text x="${legendX + swatch + 10}" y="${donutCenterY - 12}" fill="${COLORS.text}" font-size="${legendSize}" font-family="system-ui, sans-serif">Met (${met})</text>
+      <text x="${legendX + swatch + 10}" y="${donutCenterY - 12}" fill="${COLORS.text}" font-size="${legendSize}" font-family="Inter, system-ui, sans-serif">Met (${met})</text>
       <rect x="${legendX}" y="${donutCenterY + 8}" width="${swatch}" height="${swatch}" fill="${COLORS.bad}" rx="3"/>
-      <text x="${legendX + swatch + 10}" y="${donutCenterY + swatch + 4}" fill="${COLORS.text}" font-size="${legendSize}" font-family="system-ui, sans-serif">Not met (${notMet})</text>
+      <text x="${legendX + swatch + 10}" y="${donutCenterY + swatch + 4}" fill="${COLORS.text}" font-size="${legendSize}" font-family="Inter, system-ui, sans-serif">Not met (${notMet})</text>
     </g>`;
 }
 
@@ -315,14 +344,14 @@ function renderFunnel(box, qualification) {
     const rowY = contentTop + index * rowHeight;
     const centerY = rowY + rowHeight / 2;
     return `
-      <text x="${box.x}" y="${centerY + labelSize * 0.35}" fill="${COLORS.muted}" font-size="${labelSize}" font-family="system-ui, sans-serif">${escapeXml(stage.label)}</text>
+      <text x="${box.x}" y="${centerY + labelSize * 0.35}" fill="${COLORS.muted}" font-size="${labelSize}" font-family="Inter, system-ui, sans-serif">${escapeXml(stage.label)}</text>
       <rect x="${barLeft}" y="${rowY + rowHeight * 0.18}" width="${barWidth.toFixed(1)}" height="${rowHeight * 0.64}" rx="6" fill="${COLORS.funnel[index]}"/>
-      <text x="${barLeft + barWidth + 14}" y="${centerY + valueSize * 0.35}" fill="${COLORS.text}" font-size="${valueSize}" font-weight="700" font-family="system-ui, sans-serif">${stage.value}</text>`;
+      <text x="${barLeft + barWidth + 14}" y="${centerY + valueSize * 0.35}" fill="${COLORS.text}" font-size="${valueSize}" font-weight="700" font-family="Inter, system-ui, sans-serif">${stage.value}</text>`;
   });
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="system-ui, sans-serif">Qualification funnel</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="Inter, system-ui, sans-serif">Qualification funnel</text>
       ${rows.join("")}
     </g>`;
 }
@@ -413,11 +442,12 @@ function renderDashboard(stats, {
     : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  ${FONT_FACE_BLOCK}
   ${bgRect}
   ${headerIcon}
-  <text x="${titleX}" y="${titleSize + 10}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="700" font-family="system-ui, sans-serif">${escapeXml(event.title)}</text>
-  <text x="40" y="${titleSize + subtitleSize + 24}" fill="${COLORS.muted}" font-size="${subtitleSize}" font-family="system-ui, sans-serif">${escapeXml(headerSubtitle)}</text>
-  <text x="${width - 40}" y="${titleSize + 10}" text-anchor="end" fill="${COLORS.muted}" font-size="${generatedSize}" font-family="system-ui, sans-serif">generated ${escapeXml(stats.generatedAt)}</text>
+  <text x="${titleX}" y="${titleSize + 10}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="700" font-family="Inter, system-ui, sans-serif">${escapeXml(event.title)}</text>
+  <text x="40" y="${titleSize + subtitleSize + 24}" fill="${COLORS.muted}" font-size="${subtitleSize}" font-family="Inter, system-ui, sans-serif">${escapeXml(headerSubtitle)}</text>
+  <text x="${width - 40}" y="${titleSize + 10}" text-anchor="end" fill="${COLORS.muted}" font-size="${generatedSize}" font-family="Inter, system-ui, sans-serif">generated ${escapeXml(stats.generatedAt)}</text>
   ${tiles}
   ${pinnedChart}
   ${dauChart}
