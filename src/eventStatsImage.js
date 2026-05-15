@@ -302,22 +302,6 @@ function estimateTextWidth(text, fontSize, weight) {
   return String(text).length * fontSize * widthRatio;
 }
 
-function buildLinePath(points, box, asArea) {
-  if (points.length === 0) return "";
-  const maxValue = Math.max(1, ...points.map((p) => p.value));
-  const stepX = points.length > 1 ? box.width / (points.length - 1) : 0;
-  const coords = points.map((point, index) => {
-    const x = box.x + stepX * index;
-    const y = box.y + box.height - (point.value / maxValue) * box.height;
-    return { x, y };
-  });
-  const linePath = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" ");
-  if (!asArea) return linePath;
-  const first = coords[0];
-  const last = coords[coords.length - 1];
-  return `${linePath} L${last.x.toFixed(1)},${(box.y + box.height).toFixed(1)} L${first.x.toFixed(1)},${(box.y + box.height).toFixed(1)} Z`;
-}
-
 function renderTile(x, y, width, height, label, value, valueColor) {
   const padding = 16;
   const innerWidth = width - padding * 2;
@@ -335,23 +319,37 @@ function renderTile(x, y, width, height, label, value, valueColor) {
     </g>`;
 }
 
-function renderTimelineChart(box, title, points, color, asArea) {
-  const titleSize = Math.min(fitFontSize(title, box.width * 0.7, 32, 600), 30);
-  const axisSize = 18;
-  const innerTop = box.y + titleSize + 20;
-  const innerBottom = box.y + box.height - axisSize - 12;
-  const path = buildLinePath(points, { x: box.x, y: innerTop, width: box.width, height: innerBottom - innerTop }, asArea);
-  const maxValue = Math.max(1, ...points.map((p) => p.value));
-  const firstDate = points[0]?.date ?? "";
-  const lastDate = points[points.length - 1]?.date ?? "";
+// Render a 5-tile "Hours for this event" strip. Each sub-tile mirrors the
+// look of the top-row tiles, but the wrapping panel + subtitle make it
+// unmistakable that these numbers are scoped to the current sub-event rather
+// than the whole Horizons program.
+function renderHoursPanel(box, hours) {
+  const titleSize = 26;
+  const subtitleSize = 16;
+  const headerHeight = titleSize + subtitleSize + 18;
+  const items = [
+    { label: "Approved", value: hours.approvedHours, color: COLORS.good },
+    { label: "Submitted", value: hours.submittedHours, color: COLORS.accent2 },
+    { label: "In review", value: hours.hoursInReview, color: "#ffd166" },
+    { label: "Unsubmitted", value: hours.unsubmittedHours, color: COLORS.muted },
+    { label: "Tracked", value: hours.trackedHours, color: COLORS.accent },
+  ];
+  const itemGap = 16;
+  const itemWidth = (box.width - itemGap * (items.length - 1)) / items.length;
+  const itemTop = box.y + headerHeight;
+  const itemHeight = box.height - headerHeight;
+  const tiles = items
+    .map((item, index) => {
+      const tileX = box.x + (itemWidth + itemGap) * index;
+      return renderTile(tileX, itemTop, itemWidth, itemHeight, item.label, item.value, item.color);
+    })
+    .join("");
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(title)}</text>
-      <text x="${box.x + box.width}" y="${box.y + titleSize}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">max ${maxValue}</text>
-      <path d="${path}" fill="${asArea ? color + "33" : "none"}" stroke="${color}" stroke-width="3"/>
-      <text x="${box.x}" y="${box.y + box.height - 2}" fill="${COLORS.muted}" font-size="${axisSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(firstDate)}</text>
-      <text x="${box.x + box.width}" y="${box.y + box.height - 2}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(lastDate)}</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">Hours — this event only</text>
+      <text x="${box.x + box.width}" y="${box.y + titleSize}" text-anchor="end" fill="${COLORS.muted}" font-size="${subtitleSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">filtered to this sub-event</text>
+      ${tiles}
     </g>`;
 }
 
@@ -478,25 +476,14 @@ function renderDashboard(stats, {
     renderTile(40 + (tileWidth + tileGap) * 3, tileY, tileWidth, tileHeight, "Not met", stats.notMetHourGoal, COLORS.bad),
   ].join("");
 
-  const chartTop = tileY + tileHeight + 50;
-  const chartHeight = 290;
-  const chartWidth = (width - 80 - 40) / 2;
-  const pinnedChart = renderTimelineChart(
-    { x: 56, y: chartTop, width: chartWidth - 32, height: chartHeight },
-    "Cumulative pinned users (30d)",
-    stats.pinnedTimeline,
-    COLORS.accent2,
-    true
-  );
-  const dauChart = renderTimelineChart(
-    { x: 64 + chartWidth, y: chartTop, width: chartWidth - 32, height: chartHeight },
-    "Daily active users (30d)",
-    stats.dauTimeline,
-    COLORS.accent,
-    false
+  const hoursTop = tileY + tileHeight + 50;
+  const hoursHeight = 230;
+  const hoursPanel = renderHoursPanel(
+    { x: 56, y: hoursTop, width: width - 112, height: hoursHeight },
+    stats.hours ?? {}
   );
 
-  const bottomTop = chartTop + chartHeight + 60;
+  const bottomTop = hoursTop + hoursHeight + 60;
   const bottomHeight = height - bottomTop - 40;
   const donutWidth = 420;
   const donutPanel = renderDonutPanel(
@@ -526,8 +513,7 @@ function renderDashboard(stats, {
   <text x="40" y="${titleSize + subtitleSize + 24}" fill="${COLORS.muted}" font-size="${subtitleSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(headerSubtitle)}</text>
   <text x="${width - 40}" y="${titleSize + 10}" text-anchor="end" fill="${COLORS.muted}" font-size="${generatedSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">generated ${escapeXml(stats.generatedAt)}</text>
   ${tiles}
-  ${pinnedChart}
-  ${dauChart}
+  ${hoursPanel}
   ${donutPanel}
   ${funnel}
 </svg>`;
