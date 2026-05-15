@@ -17,7 +17,7 @@ const PNG_SCALE = 2; // Render at 2× pixel density for crisp text on retina/pri
 // resvg-js loads the font file directly — no fontconfig, no @font-face data
 // URIs (which librsvg quietly ignores). The family name is read from the
 // font's `name` table at startup so swapping the file in assets/ Just Works.
-const BUNDLED_FONT_PATH = path.resolve(__dirname, "..", "assets", "ComicNeue-Regular.ttf");
+const BUNDLED_FONT_PATH = path.resolve(__dirname, "..", "assets", "Play-Bold.ttf");
 const BUNDLED_FONT_FAMILY = readFontFamilyName(BUNDLED_FONT_PATH);
 
 /**
