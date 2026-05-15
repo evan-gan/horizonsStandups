@@ -5,30 +5,106 @@
 
 const fs = require("fs");
 const path = require("path");
+const zlib = require("zlib");
 const sharp = require("sharp");
+const { Resvg } = require("@resvg/resvg-js");
 
 const DEFAULT_EVENT_NAME = "Test Event";
 
 const OUTPUT_DIR = path.resolve(__dirname, "..", "output");
 const PNG_SCALE = 2; // Render at 2× pixel density for crisp text on retina/print.
 
-// Read the bundled font once at startup and base64-encode it. We embed it via
-// @font-face/data URI inside every SVG so librsvg never has to look up system
-// fonts — the project works on hosts with no font packages installed.
-const BUNDLED_FONT_PATH = path.resolve(__dirname, "..", "assets", "Regular.woff");
-const BUNDLED_FONT_BASE64 = fs.readFileSync(BUNDLED_FONT_PATH).toString("base64");
-const FONT_FACE_BLOCK = `
-    <defs>
-      <style type="text/css"><![CDATA[
-        @font-face {
-          font-family: 'BundledSans';
-          src: url(data:font/woff;base64,${BUNDLED_FONT_BASE64}) format('woff');
-          font-weight: 100 900;
-          font-style: normal;
-        }
-      ]]></style>
-    </defs>`;
-const FONT_STACK = "BundledSans, sans-serif";
+// resvg-js loads the font file directly — no fontconfig, no @font-face data
+// URIs (which librsvg quietly ignores). The family name is read from the
+// font's `name` table at startup so swapping the file in assets/ Just Works.
+const BUNDLED_FONT_PATH = path.resolve(__dirname, "..", "assets", "ComicNeue-Regular.ttf");
+const BUNDLED_FONT_FAMILY = readFontFamilyName(BUNDLED_FONT_PATH);
+
+/**
+ * Read the font family name from a TTF, OTF, or WOFF file's `name` table so we
+ * don't have to keep BUNDLED_FONT_FAMILY in sync with the bundled file. Falls
+ * back to "sans-serif" if parsing fails so rendering still produces something.
+ */
+function readFontFamilyName(filePath) {
+  try {
+    const buffer = fs.readFileSync(filePath);
+    const isWoff = buffer.slice(0, 4).toString("ascii") === "wOFF";
+    const tables = isWoff ? readWoffTables(buffer) : readSfntTables(buffer);
+    const nameTable = tables.get("name");
+    if (!nameTable) return "sans-serif";
+    return parseNameTable(nameTable) || "sans-serif";
+  } catch (error) {
+    console.warn(`[stats-image] could not parse font family from ${filePath}: ${error.message}`);
+    return "sans-serif";
+  }
+}
+
+function readSfntTables(buffer) {
+  const numTables = buffer.readUInt16BE(4);
+  const tables = new Map();
+  for (let i = 0; i < numTables; i++) {
+    const entryOffset = 12 + i * 16;
+    const tag = buffer.slice(entryOffset, entryOffset + 4).toString("ascii");
+    const offset = buffer.readUInt32BE(entryOffset + 8);
+    const length = buffer.readUInt32BE(entryOffset + 12);
+    tables.set(tag, buffer.slice(offset, offset + length));
+  }
+  return tables;
+}
+
+function readWoffTables(buffer) {
+  const numTables = buffer.readUInt16BE(12);
+  const tables = new Map();
+  for (let i = 0; i < numTables; i++) {
+    const entryOffset = 44 + i * 20;
+    const tag = buffer.slice(entryOffset, entryOffset + 4).toString("ascii");
+    const offset = buffer.readUInt32BE(entryOffset + 4);
+    const compLength = buffer.readUInt32BE(entryOffset + 8);
+    const origLength = buffer.readUInt32BE(entryOffset + 12);
+    const raw = buffer.slice(offset, offset + compLength);
+    const data = compLength < origLength ? zlib.inflateSync(raw) : raw;
+    tables.set(tag, data);
+  }
+  return tables;
+}
+
+/**
+ * Pull the best font-family string out of an sfnt `name` table. Prefers
+ * NameID 16 (Typographic Family) over 1 (Font Family) and English-Windows
+ * encoding over everything else, falling back to NameID 4 (Full Name).
+ */
+function parseNameTable(nameTable) {
+  const count = nameTable.readUInt16BE(2);
+  const stringOffset = nameTable.readUInt16BE(4);
+  const candidates = [];
+  for (let i = 0; i < count; i++) {
+    const recordOffset = 6 + i * 12;
+    const platformId = nameTable.readUInt16BE(recordOffset);
+    const encodingId = nameTable.readUInt16BE(recordOffset + 2);
+    const languageId = nameTable.readUInt16BE(recordOffset + 4);
+    const nameId = nameTable.readUInt16BE(recordOffset + 6);
+    const length = nameTable.readUInt16BE(recordOffset + 8);
+    const offset = nameTable.readUInt16BE(recordOffset + 10);
+    if (nameId !== 1 && nameId !== 4 && nameId !== 16) continue;
+    const stringBytes = nameTable.slice(stringOffset + offset, stringOffset + offset + length);
+    // Windows/Unicode platforms use UTF-16BE; Macintosh roman is ASCII-ish.
+    const isUtf16 = platformId === 0 || platformId === 3;
+    const value = isUtf16 ? stringBytes.swap16().toString("utf16le") : stringBytes.toString("latin1");
+    candidates.push({ platformId, encodingId, languageId, nameId, value });
+  }
+  const priorities = [
+    (record) => record.nameId === 16 && record.platformId === 3 && record.languageId === 0x0409,
+    (record) => record.nameId === 1 && record.platformId === 3 && record.languageId === 0x0409,
+    (record) => record.nameId === 16,
+    (record) => record.nameId === 1,
+    (record) => record.nameId === 4,
+  ];
+  for (const predicate of priorities) {
+    const match = candidates.find(predicate);
+    if (match?.value) return match.value;
+  }
+  return null;
+}
 
 function getApiConfig() {
   const url = process.env.EVENT_STATS_API_URL;
@@ -93,9 +169,7 @@ async function renderStatsToPng(stats) {
   });
 
   if (!hasLogo) {
-    return sharp(Buffer.from(svgMarkup), { density: 72 * PNG_SCALE })
-      .png({ compressionLevel: 9 })
-      .toBuffer();
+    return rasterizeSvgWithResvg(svgMarkup);
   }
 
   const width = 1600 * PNG_SCALE;
@@ -114,9 +188,7 @@ async function renderStatsToPng(stats) {
     .png()
     .toBuffer();
 
-  const svgRaster = await sharp(Buffer.from(svgMarkup), { density: 72 * PNG_SCALE })
-    .png()
-    .toBuffer();
+  const svgRaster = await rasterizeSvgWithResvg(svgMarkup);
 
   return sharp({
     create: {
@@ -132,6 +204,23 @@ async function renderStatsToPng(stats) {
     ])
     .png({ compressionLevel: 9 })
     .toBuffer();
+}
+
+/**
+ * Rasterize an SVG string to a PNG buffer using resvg-js. We load the bundled
+ * TTF directly via `font.fontFiles` so the renderer doesn't need fontconfig or
+ * any system fonts on the host.
+ */
+async function rasterizeSvgWithResvg(svgMarkup) {
+  const resvg = new Resvg(svgMarkup, {
+    fitTo: { mode: "width", value: 1600 * PNG_SCALE },
+    font: {
+      fontFiles: [BUNDLED_FONT_PATH],
+      loadSystemFonts: false,
+      defaultFontFamily: BUNDLED_FONT_FAMILY,
+    },
+  });
+  return resvg.render().asPng();
 }
 
 async function getAspectRatio(buffer) {
@@ -241,8 +330,8 @@ function renderTile(x, y, width, height, label, value, valueColor) {
   return `
     <g>
       <rect x="${x}" y="${y}" width="${width}" height="${height}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${x + padding}" y="${y + padding + labelSize * 0.85}" fill="${COLORS.muted}" font-size="${labelSize}" font-weight="500" font-family="BundledSans, sans-serif">${escapeXml(label)}</text>
-      <text x="${x + width / 2}" y="${valueCenterY + valueSize * 0.35}" text-anchor="middle" fill="${valueColor}" font-size="${valueSize}" font-weight="700" font-family="BundledSans, sans-serif">${escapeXml(value)}</text>
+      <text x="${x + padding}" y="${y + padding + labelSize * 0.85}" fill="${COLORS.muted}" font-size="${labelSize}" font-weight="500" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(label)}</text>
+      <text x="${x + width / 2}" y="${valueCenterY + valueSize * 0.35}" text-anchor="middle" fill="${valueColor}" font-size="${valueSize}" font-weight="700" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(value)}</text>
     </g>`;
 }
 
@@ -258,11 +347,11 @@ function renderTimelineChart(box, title, points, color, asArea) {
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="BundledSans, sans-serif">${escapeXml(title)}</text>
-      <text x="${box.x + box.width}" y="${box.y + titleSize}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="BundledSans, sans-serif">max ${maxValue}</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(title)}</text>
+      <text x="${box.x + box.width}" y="${box.y + titleSize}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">max ${maxValue}</text>
       <path d="${path}" fill="${asArea ? color + "33" : "none"}" stroke="${color}" stroke-width="3"/>
-      <text x="${box.x}" y="${box.y + box.height - 2}" fill="${COLORS.muted}" font-size="${axisSize}" font-family="BundledSans, sans-serif">${escapeXml(firstDate)}</text>
-      <text x="${box.x + box.width}" y="${box.y + box.height - 2}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="BundledSans, sans-serif">${escapeXml(lastDate)}</text>
+      <text x="${box.x}" y="${box.y + box.height - 2}" fill="${COLORS.muted}" font-size="${axisSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(firstDate)}</text>
+      <text x="${box.x + box.width}" y="${box.y + box.height - 2}" text-anchor="end" fill="${COLORS.muted}" font-size="${axisSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(lastDate)}</text>
     </g>`;
 }
 
@@ -284,8 +373,8 @@ function renderDonut(centerX, centerY, radius, met, notMet) {
       <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="${COLORS.bad}"/>
       ${met > 0 ? `<path d="${metPath}" fill="${COLORS.good}"/>` : ""}
       <circle cx="${centerX}" cy="${centerY}" r="${radius * 0.6}" fill="${COLORS.panel}"/>
-      <text x="${centerX}" y="${centerY + percentSize * 0.18}" text-anchor="middle" fill="${COLORS.text}" font-size="${percentSize}" font-weight="700" font-family="BundledSans, sans-serif">${percentLabel}</text>
-      <text x="${centerX}" y="${centerY + percentSize * 0.18 + captionSize + 6}" text-anchor="middle" fill="${COLORS.muted}" font-size="${captionSize}" font-family="BundledSans, sans-serif">met goal</text>
+      <text x="${centerX}" y="${centerY + percentSize * 0.18}" text-anchor="middle" fill="${COLORS.text}" font-size="${percentSize}" font-weight="700" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${percentLabel}</text>
+      <text x="${centerX}" y="${centerY + percentSize * 0.18 + captionSize + 6}" text-anchor="middle" fill="${COLORS.muted}" font-size="${captionSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">met goal</text>
     </g>`;
 }
 
@@ -301,12 +390,12 @@ function renderDonutPanel(box, met, notMet) {
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="BundledSans, sans-serif">Hour goal split</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">Hour goal split</text>
       ${renderDonut(donutCenterX, donutCenterY, radius, met, notMet)}
       <rect x="${legendX}" y="${donutCenterY - swatch - 8}" width="${swatch}" height="${swatch}" fill="${COLORS.good}" rx="3"/>
-      <text x="${legendX + swatch + 10}" y="${donutCenterY - 12}" fill="${COLORS.text}" font-size="${legendSize}" font-family="BundledSans, sans-serif">Met (${met})</text>
+      <text x="${legendX + swatch + 10}" y="${donutCenterY - 12}" fill="${COLORS.text}" font-size="${legendSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">Met (${met})</text>
       <rect x="${legendX}" y="${donutCenterY + 8}" width="${swatch}" height="${swatch}" fill="${COLORS.bad}" rx="3"/>
-      <text x="${legendX + swatch + 10}" y="${donutCenterY + swatch + 4}" fill="${COLORS.text}" font-size="${legendSize}" font-family="BundledSans, sans-serif">Not met (${notMet})</text>
+      <text x="${legendX + swatch + 10}" y="${donutCenterY + swatch + 4}" fill="${COLORS.text}" font-size="${legendSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">Not met (${notMet})</text>
     </g>`;
 }
 
@@ -333,14 +422,14 @@ function renderFunnel(box, qualification) {
     const rowY = contentTop + index * rowHeight;
     const centerY = rowY + rowHeight / 2;
     return `
-      <text x="${box.x}" y="${centerY + labelSize * 0.35}" fill="${COLORS.muted}" font-size="${labelSize}" font-family="BundledSans, sans-serif">${escapeXml(stage.label)}</text>
+      <text x="${box.x}" y="${centerY + labelSize * 0.35}" fill="${COLORS.muted}" font-size="${labelSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(stage.label)}</text>
       <rect x="${barLeft}" y="${rowY + rowHeight * 0.18}" width="${barWidth.toFixed(1)}" height="${rowHeight * 0.64}" rx="6" fill="${COLORS.funnel[index]}"/>
-      <text x="${barLeft + barWidth + 14}" y="${centerY + valueSize * 0.35}" fill="${COLORS.text}" font-size="${valueSize}" font-weight="700" font-family="BundledSans, sans-serif">${stage.value}</text>`;
+      <text x="${barLeft + barWidth + 14}" y="${centerY + valueSize * 0.35}" fill="${COLORS.text}" font-size="${valueSize}" font-weight="700" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${stage.value}</text>`;
   });
   return `
     <g>
       <rect x="${box.x - 16}" y="${box.y - 16}" width="${box.width + 32}" height="${box.height + 32}" rx="12" fill="${COLORS.panel}" stroke="${COLORS.panelEdge}"/>
-      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="BundledSans, sans-serif">Qualification funnel</text>
+      <text x="${box.x}" y="${box.y + titleSize}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="600" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">Qualification funnel</text>
       ${rows.join("")}
     </g>`;
 }
@@ -431,12 +520,11 @@ function renderDashboard(stats, {
     : "";
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${FONT_FACE_BLOCK}
   ${bgRect}
   ${headerIcon}
-  <text x="${titleX}" y="${titleSize + 10}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="700" font-family="BundledSans, sans-serif">${escapeXml(event.title)}</text>
-  <text x="40" y="${titleSize + subtitleSize + 24}" fill="${COLORS.muted}" font-size="${subtitleSize}" font-family="BundledSans, sans-serif">${escapeXml(headerSubtitle)}</text>
-  <text x="${width - 40}" y="${titleSize + 10}" text-anchor="end" fill="${COLORS.muted}" font-size="${generatedSize}" font-family="BundledSans, sans-serif">generated ${escapeXml(stats.generatedAt)}</text>
+  <text x="${titleX}" y="${titleSize + 10}" fill="${COLORS.text}" font-size="${titleSize}" font-weight="700" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(event.title)}</text>
+  <text x="40" y="${titleSize + subtitleSize + 24}" fill="${COLORS.muted}" font-size="${subtitleSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">${escapeXml(headerSubtitle)}</text>
+  <text x="${width - 40}" y="${titleSize + 10}" text-anchor="end" fill="${COLORS.muted}" font-size="${generatedSize}" font-family="${BUNDLED_FONT_FAMILY}, sans-serif">generated ${escapeXml(stats.generatedAt)}</text>
   ${tiles}
   ${pinnedChart}
   ${dauChart}
