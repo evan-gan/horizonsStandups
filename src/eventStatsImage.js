@@ -327,12 +327,15 @@ function renderHoursPanel(box, hours) {
   const titleSize = 26;
   const subtitleSize = 16;
   const headerHeight = titleSize + subtitleSize + 18;
+  // Round to whole hours for display — the API may return fractional totals
+  // (e.g. 75.4), but the dashboard reads as a quick scan, not a ledger.
+  const displayHours = (value) => Math.round(Number(value) || 0);
   const items = [
-    { label: "Approved", value: hours.approvedHours, color: COLORS.good },
-    { label: "Submitted", value: hours.submittedHours, color: COLORS.accent2 },
-    { label: "In review", value: hours.hoursInReview, color: "#ffd166" },
-    { label: "Unsubmitted", value: hours.unsubmittedHours, color: COLORS.muted },
-    { label: "Tracked", value: hours.trackedHours, color: COLORS.accent },
+    { label: "Approved", value: displayHours(hours.approvedHours), color: COLORS.good },
+    { label: "Submitted", value: displayHours(hours.submittedHours), color: COLORS.accent2 },
+    { label: "In review", value: displayHours(hours.hoursInReview), color: "#ffd166" },
+    { label: "Unsubmitted", value: displayHours(hours.unsubmittedHours), color: COLORS.muted },
+    { label: "Tracked", value: displayHours(hours.trackedHours), color: COLORS.accent },
   ];
   const itemGap = 16;
   const itemWidth = (box.width - itemGap * (items.length - 1)) / items.length;
